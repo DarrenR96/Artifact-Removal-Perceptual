@@ -296,3 +296,84 @@ class VideoQualityAssessment(keras.Model):
         return keras.Model(inputs=[x_ref_min1, x_ref, x_ref_pl1, x_dist_min1, x_dist, x_dist_pl1], 
                            outputs=self.call(x_ref_min1, x_ref, x_ref_pl1, x_dist_min1, x_dist, x_dist_pl1))
         
+
+        
+ spatialBlock = [
+    (64, 3, 2, True),
+    (64, 3, 2, False),
+    (128, 3, 2, False),
+    (128, 3, 2, False),
+]
+
+temporalBlock = [
+    (128, 3, 2, False),
+    (128, 3, 2, False),
+    (256, 3, 2, False),
+]
+
+finalBlock = [
+    (256, 3, 2, False),
+    (256, 3, 2, False),
+    (512, 3, 2, False),
+]
+
+denseBlock = [
+    1024,
+    512,
+    128,
+    1
+]
+
+model = VideoQualityAssessment(spatialBlock,temporalBlock, finalBlock, denseBlock).model()
+model.summary()
+
+
+
+encoder = [
+    (64, 4, (1,2,2), True),
+    (64, 4, (1,2,2), False),
+    (128, 4, (1,2,2), False),
+    (128, 5, (1,5,5), False),
+    (256, 4, (1,3,3), False),
+    (256, 4, (1,3,2), False),
+    (256, 3, (1,3,2), False),
+    (512, 3, (1,2,2), False),
+]
+
+decoder = [
+    (256, 3, (1,1,2), True),
+    (256, 4, (1,3,2), True),
+    (256, 4, (1,3,2), True),
+    (128, 4, (1,3,3), False),
+    (128, 5, (1,5,5), False),
+    (64, 4, (1,2,2), False),
+    (64, 4, (1,2,2), False),
+]
+    
+model = TemporalSuppression(encoder,decoder).model()
+model.summary()
+
+
+encoder = [
+    (64, 4, 2, True),
+    (64, 4, 2, False),
+    (128, 4, 2, False),
+    (128, 5, 5, False),
+    (256, 4, 3, False),
+    (256, 4, (3,2), False),
+    (512, 3, (3,2), False),
+    (512, 3, 2, False),
+]
+
+decoder = [
+    (512, 3, (1,2), True),
+    (256, 4, (3,2), True),
+    (256, 4, (3,2), True),
+    (128, 4, (3,3), False),
+    (128, 5, 5, False),
+    (64, 4, 2, False),
+    (64, 4, 2, False),
+]
+    
+model = SpatialSuppression(encoder,decoder).model()
+model.summary()
