@@ -219,7 +219,7 @@ class TemporalSuppression(keras.Model):
             x = decoderLayer(x, training=training)
             x = layers.Concatenate()([x, skip])
        
-        x = self.lastConv(x)
+        x = self.lastConv(x, training=training)
         
         return x
     
@@ -249,38 +249,38 @@ class VideoQualityAssessment(keras.Model):
     
     def call(self, x_ref_min1, x_ref, x_ref_pl1, x_dist_min1, x_dist, x_dist_pl1, training = False):
         for spatial in self.spatialBlocks:
-            x_ref_min1 = spatial(x_ref_min1)
+            x_ref_min1 = spatial(x_ref_min1, training=training)
         for spatial in self.spatialBlocks:
-            x_ref = spatial(x_ref)
+            x_ref = spatial(x_ref, training=training)
         for spatial in self.spatialBlocks:
-            x_ref_pl1 = spatial(x_ref_pl1)
+            x_ref_pl1 = spatial(x_ref_pl1, training=training)
             
         x_ref = layers.Concatenate()([x_ref_min1, x_ref, x_ref_pl1])
         
         for spatial in self.spatialBlocks:
-            x_dist_min1 = spatial(x_dist_min1)
+            x_dist_min1 = spatial(x_dist_min1, training=training)
         for spatial in self.spatialBlocks:
-            x_dist = spatial(x_dist)
+            x_dist = spatial(x_dist, training=training)
         for spatial in self.spatialBlocks:
-            x_dist_pl1 = spatial(x_dist_pl1)
+            x_dist_pl1 = spatial(x_dist_pl1, training=training)
         
         x_dist = layers.Concatenate()([x_dist_min1, x_dist, x_dist_pl1])
         
                 
         for temporal in self.temporalBlock:
-            x_ref = temporal(x_ref)
+            x_ref = temporal(x_ref, training=training)
         for temporal in self.temporalBlock:
-            x_dist = temporal(x_dist)
+            x_dist = temporal(x_dist, training=training)
             
         x = layers.Concatenate()([x_ref, x_dist])
         
         for final in self.finalBlock:
-            x = final(x)
+            x = final(x, training=training)
         
         x = layers.Flatten()(x)
         
         for dense in self.denseBlock:
-            x = dense(x)
+            x = dense(x, training=training)
             
         return x
         
