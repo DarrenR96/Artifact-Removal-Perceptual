@@ -107,10 +107,10 @@ class SpatialSuppression(keras.Model):
         self.encoder = []
         self.decoder = []
         for encoder_opts in encoder:
-            self.encoder.append(CNNBNReluDown(encoder_opts[0],encoder_opts[1],encoder_opts[2]))
+            self.encoder.append(CNNBNReluDown(encoder_opts[0],encoder_opts[1],encoder_opts[2], encoder_opts[3]))
         
         for decoder_opts in decoder:
-            self.decoder.append(CNNBNReluUp(decoder_opts[0],decoder_opts[1],decoder_opts[2]))
+            self.decoder.append(CNNBNReluUp(decoder_opts[0],decoder_opts[1],decoder_opts[2],decoder_opts[3]))
         self.lastConv = layers.Conv2DTranspose(outChannels, 4, strides=2, padding="same")
     
     def call(self, x, training=False):
@@ -200,10 +200,10 @@ class TemporalSuppression(keras.Model):
         self.encoder = []
         self.decoder = []
         for encoder_opts in encoder:
-            self.encoder.append(CNN3D_BNReluDown(encoder_opts[0],encoder_opts[1],encoder_opts[2]))
+            self.encoder.append(CNN3D_BNReluDown(encoder_opts[0],encoder_opts[1],encoder_opts[2],encoder_opts[3]))
         
         for decoder_opts in decoder:
-            self.decoder.append(CNN3D_BNReluUp(decoder_opts[0],decoder_opts[1],decoder_opts[2]))
+            self.decoder.append(CNN3D_BNReluUp(decoder_opts[0],decoder_opts[1],decoder_opts[2],decoder_opts[3]))
         self.lastConv = layers.Conv3DTranspose(outChannels, 4, strides=(1,2,2), padding="same")
     
     def call(self, x, training=False):
@@ -227,52 +227,72 @@ class TemporalSuppression(keras.Model):
         x = keras.Input(shape=(3,1080,1920,3))
         return keras.Model(inputs=[x], outputs=self.call(x))
 
-
-encoder = [
-    (64, 4, (1,2,2), True),
-    (64, 4, (1,2,2), False),
-    (128, 4, (1,2,2), False),
-    (128, 5, (1,5,5), False),
-    (256, 4, (1,3,3), False),
-    (256, 4, (1,3,2), False),
-    (256, 3, (1,3,2), False),
-    (512, 3, (1,2,2), False),
-]
-
-decoder = [
-    (256, 3, (1,1,2), True),
-    (256, 4, (1,3,2), True),
-    (256, 4, (1,3,2), True),
-    (128, 4, (1,3,3), False),
-    (128, 5, (1,5,5), False),
-    (64, 4, (1,2,2), False),
-    (64, 4, (1,2,2), False),
-]
+class VideoQualityAssessment(keras.Model):
+    def __init__(self, spatialBlocks, temporalBlock, finalBlock, denseBlock):
+        super(VideoQualityAssessment, self).__init__()
+        self.spatialBlocks = []
+        self.temporalBlock = []
+        self.finalBlock = []
+        self.denseBlock = []
+        
+        for spatial in spatialBlocks:
+            self.spatialBlocks.append(CNNBNReluDown(spatial[0],spatial[1],spatial[2], spatial[3]))
+        
+        for temporal in temporalBlock:
+            self.temporalBlock.append(CNNBNReluDown(temporal[0],temporal[1],temporal[2], temporal[3]))
+        
+        for final in finalBlock:
+            self.finalBlock.append(CNNBNReluDown(final[0],final[1],final[2], final[3]))
+        
+        for dense in denseBlock:
+            self.denseBlock.append(layers.Dense(dense))
     
-model = TemporalSuppression(encoder,decoder).model()
-model.summary()
+    def call(self, x_ref_min1, x_ref, x_ref_pl1, x_dist_min1, x_dist, x_dist_pl1, training = False):
+        for spatial in self.spatialBlocks:
+            x_ref_min1 = spatial(x_ref_min1)
+        for spatial in self.spatialBlocks:
+            x_ref = spatial(x_ref)
+        for spatial in self.spatialBlocks:
+            x_ref_pl1 = spatial(x_ref_pl1)
+            
+        x_ref = layers.Concatenate()([x_ref_min1, x_ref, x_ref_pl1])
+        
+        for spatial in self.spatialBlocks:
+            x_dist_min1 = spatial(x_dist_min1)
+        for spatial in self.spatialBlocks:
+            x_dist = spatial(x_dist)
+        for spatial in self.spatialBlocks:
+            x_dist_pl1 = spatial(x_dist_pl1)
+        
+        x_dist = layers.Concatenate()([x_dist_min1, x_dist, x_dist_pl1])
+        
+                
+        for temporal in self.temporalBlock:
+            x_ref = temporal(x_ref)
+        for temporal in self.temporalBlock:
+            x_dist = temporal(x_dist)
+            
+        x = layers.Concatenate()([x_ref, x_dist])
+        
+        for final in self.finalBlock:
+            x = final(x)
+        
+        x = layers.Flatten()(x)
+        
+        for dense in self.denseBlock:
+            x = dense(x)
+            
+        return x
+        
+    def model(self):
+        x_ref_min1 = keras.Input(shape=(1080,1920,3))
+        x_ref = keras.Input(shape=(1080,1920,3))
+        x_ref_pl1 = keras.Input(shape=(1080,1920,3))
 
-
-encoder = [
-    (64, 4, 2, True),
-    (64, 4, 2, False),
-    (128, 4, 2, False),
-    (128, 5, 5, False),
-    (256, 4, 3, False),
-    (256, 4, (3,2), False),
-    (512, 3, (3,2), False),
-    (512, 3, 2, False),
-]
-
-decoder = [
-    (512, 3, (1,2), True),
-    (256, 4, (3,2), True),
-    (256, 4, (3,2), True),
-    (128, 4, (3,3), False),
-    (128, 5, 5, False),
-    (64, 4, 2, False),
-    (64, 4, 2, False),
-]
-    
-model = SpatialSuppression(encoder,decoder).model()
-model.summary()
+        x_dist_min1 = keras.Input(shape=(1080,1920,3))
+        x_dist = keras.Input(shape=(1080,1920,3))
+        x_dist_pl1 = keras.Input(shape=(1080,1920,3))
+        
+        return keras.Model(inputs=[x_ref_min1, x_ref, x_ref_pl1, x_dist_min1, x_dist, x_dist_pl1], 
+                           outputs=self.call(x_ref_min1, x_ref, x_ref_pl1, x_dist_min1, x_dist, x_dist_pl1))
+        
