@@ -1,18 +1,12 @@
-import os
 from tensorflow import keras
 import tensorflow as tf
 from tensorflow.keras import layers
 from keras.utils.vis_utils import plot_model
 import numpy as np
-import subprocess
-import matplotlib.pyplot as plt
-import pandas as pd
-import datetime
-import pathlib
 from keras import backend as K
 import random
 
-
+from keras.models import Model
 class CNNBNReluDown(layers.Layer):
     def __init__(self, numFilters, size, strides, bn=False, **kwargs):
         super(CNNBNReluDown, self).__init__()
@@ -71,8 +65,6 @@ class CNNBNReluUp(layers.Layer):
             x = self.dropoutLayer(x, training=training)
         x = self.reluLayer(x)
         return x
-      
- 
 
 class SpatialSuppression(keras.Model):
     def __init__(self, encoder, decoder, outChannels = 3):
@@ -112,66 +104,6 @@ class SpatialSuppression(keras.Model):
     def model(self):
         x = keras.Input(shape=(1080,1920,3))
         return keras.Model(inputs=[x], outputs=self.call(x))
-    
-
-class CNN3D_BNReluDown(layers.Layer):
-    def __init__(self, numFilters, size, strides, bn=False,  **kwargs):
-        super(CNN3D_BNReluDown, self).__init__()
-        self.numFilters = numFilters
-        self.size = size
-        self.bn = bn
-        self.strides = strides
-        self.conv3DLayer = layers.Conv3D(self.numFilters, self.size, strides=self.strides ,padding="same")
-        if self.bn:
-            self.bnLayer = layers.BatchNormalization()
-        self.reluLayer = layers.LeakyReLU()
-    
-    def get_config(self):
-        config = super().get_config().copy()
-        config.update({
-            'numFilters' : self.numFilters,
-            'size' : self.size,
-            'strides' : self.strides,
-            'bn' : self.bn
-        })
-        return config
-    
-    def call(self, inputs, training=False):
-        x = self.conv3DLayer(inputs)
-        if self.bn:
-            x = self.bnLayer(x, training=training)
-        x = self.reluLayer(x)
-        return x
-
-
-class CNN3D_BNReluUp(layers.Layer):
-    def __init__(self, numFilters, size, strides, dropout=False,  **kwargs):
-        super(CNN3D_BNReluUp, self).__init__()
-        self.numFilters = numFilters
-        self.size = size
-        self.dropout = dropout
-        self.strides = strides
-        self.conv3DLayer = layers.Conv3DTranspose(self.numFilters, self.size, strides=self.strides, padding="same")
-        if self.dropout:
-            self.dropoutLayer = layers.Dropout(0.3)
-        self.reluLayer = layers.LeakyReLU()
-    
-    def get_config(self):
-        config = super().get_config().copy()
-        config.update({
-            'numFilters' : self.numFilters,
-            'size' : self.size,
-            'strides' : self.strides,
-            'dropout' : self.dropout
-        })
-        return config
-    
-    def call(self, inputs, training=False):
-        x = self.conv3DLayer(inputs)
-        if self.dropout:
-            x = self.dropoutLayer(x, training=training)
-        x = self.reluLayer(x)
-        return x
 
 class TemporalSuppression(keras.Model):
     def __init__(self, encoder, decoder, outChannels = 3):
@@ -291,85 +223,3 @@ class VideoQualityAssessment(keras.Model):
         
         return keras.Model(inputs=[x_ref_min1, x_ref, x_ref_pl1, x_dist_min1, x_dist, x_dist_pl1], 
                            outputs=self.call(x_ref_min1, x_ref, x_ref_pl1, x_dist_min1, x_dist, x_dist_pl1))
-
-spatialBlock = [
-    (64, 3, 2, True),
-    (64, 3, 2, False),
-    (128, 3, 2, False),
-    (128, 3, 2, False),
-]
-
-temporalBlock = [
-    (128, 3, 2, False),
-    (128, 3, 2, False),
-    (256, 3, 2, False),
-]
-
-finalBlock = [
-    (256, 3, 2, False),
-    (256, 3, 2, False),
-    (512, 3, 2, False),
-]
-
-denseBlock = [
-    1024,
-    512,
-    128,
-    1
-]
-
-vqaModel = VideoQualityAssessment(spatialBlock,temporalBlock, finalBlock, denseBlock).model()
-
-
-
-encoderTemporal = [
-    (64, 4, 2, True),
-    (64, 4, 2, False),
-    (128, 4, 2, False),
-    (128, 5, 5, False),
-    (256, 4, 3, False),
-    (256, 4, (3,2), False),
-    (512, 3, (3,2), False),
-    (512, 3, 2, False),
-]
-
-
-decoderTemporal = [
-    (512, 3, (1,2), True),
-    (256, 4, (3,2), True),
-    (256, 4, (3,2), True),
-    (128, 4, (3,3), False),
-    (128, 5, 5, False),
-    (64, 4, 2, False),
-    (64, 4, 2, False),
-]
-
-temporalModel = TemporalSuppression(encoderTemporal, decoderTemporal).model()
-
-    
-
-encoderSpatial = [
-    (3, 4, 1, True),
-    (64, 4, 2, False),
-    (64, 4, 2, False),
-    (128, 4, 2, False),
-    (128, 5, 5, False),
-    (256, 4, 3, False),
-    (256, 4, (3,2), False),
-    (512, 3, (3,2), False),
-    (512, 3, 2, False),
-]
-
-decoderSpatial = [
-    (512, 3, (1,2), True),
-    (256, 4, (3,2), True),
-    (256, 4, (3,2), True),
-    (128, 4, (3,3), False),
-    (128, 5, 5, False),
-    (64, 4, 2, False),
-    (64, 4, 2, False),
-    (3, 4, 2, False)
-]
-
-spatialModel = SpatialSuppression(encoderSpatial, decoderSpatial).model()
-
